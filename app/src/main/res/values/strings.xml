@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">MyTextToSpeech</string>
+
+    <string name="hnt_et_content">Enter text here</string>
+    <string name="str_btn_speak">Speak</string>
+    <string name="str_btn_pause">Pause</string>
+
+    <string name="str">
+        TextToSpeech API : Synthesizes speech from text for immediate playback or to create a sound file.
+        A TextToSpeech instance can only be used to synthesize text once it has completed its initialization.
+        Implement the TextToSpeech.OnInitListener to be notified of the completion of the initialization.
+        When you are done using the TextToSpeech instance, call the shutdown() method to release the native
+        resources used by the TextToSpeech engine.
+</string>
+
+</resources>
