@@ -6,6 +6,7 @@ import android.media.MediaPlayer
 import android.os.Bundle
 import android.os.Environment
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -35,17 +36,15 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private var filePath: String? = null
     private var isDirectoryCreated: Boolean = false
 
-    private val file = File(
-        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-        "Text to speech audio"
-    )
+    private var file : File? = null
+    var firstTime = true
 
     private val paragraph =
-        "TextToSpeech API : Synthesizes speech from text for immediate playback or to create a sound file.\n" +
+        "<speak> TextToSpeech API <break time=\"2s\"/> : Synthesizes speech from text for immediate playback or to create a sound file.\n" +
                 "        A TextToSpeech instance can only be used to synthesize text once it has completed its initialization.\n" +
                 "        Implement the TextToSpeech.OnInitListener to be notified of the completion of the initialization.\n" +
                 "        When you are done using the TextToSpeech instance, call the shutdown() method to release the native\n" +
-                "        resources used by the TextToSpeech engine."
+                "        resources used by the TextToSpeech engine. </speak>"
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,50 +52,58 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        textToSpeech = TextToSpeech(this, this)
+        textToSpeech = TextToSpeech(this, this, "com.google.android.tts")
         mProgressDialog = ProgressDialog(this)
         mediaPlayer = MediaPlayer()
 
         mProgressDialog!!.setCancelable(true)
         mProgressDialog!!.setProgressStyle(ProgressDialog.STYLE_SPINNER)
         mProgressDialog!!.setMessage("Please wait ...")
-
+        file = File(
+            this.getExternalFilesDir(null),
+            "ttsAudio"
+        )
         binding.btnSpeak.setOnClickListener {
-            if (status == TextToSpeech.SUCCESS) {
-
-                binding.btnSpeak.text = "Pause"
+            if (mProcessed){
                 if (mediaPlayer != null && mediaPlayer!!.isPlaying) {
                     playMediaPlayer(1)
-                    binding.btnSpeak.text = "Speak"
-
-                } else {
+                }else{
+                    playMediaPlayer(0)
+                }
+            }else{
+                if (status == TextToSpeech.SUCCESS) {
                     //create directory
-                    if (!file.exists()) {
-                        isDirectoryCreated = file.mkdirs()
+                    if (!file?.exists()!!) {
+                        isDirectoryCreated = file?.mkdirs()!!
                         if (!isDirectoryCreated) {
                             Log.d("File", "file cannot create")
                         }
                     }
-                    file.mkdirs()
+
+                    val params = Bundle()
+                    params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceID);
 
                     //save tts as audio file
-                    filePath = "${file.absolutePath}/$utteranceID${System.currentTimeMillis()}.wav"
+                    filePath = "${file?.absolutePath}/$utteranceID${System.currentTimeMillis()}.wav"
                     textToSpeech!!.synthesizeToFile(
                         paragraph,
-                        null,
+                        params,
                         filePath?.let { path -> File(path) },
                         utteranceID
                     )
-                    playMediaPlayer(0)
-                }
-                //  mProgressDialog!!.show()
 
-            } else {
-                Toast.makeText(
-                    baseContext,
-                    "TextToSpeech Engine is not initialized",
-                    Toast.LENGTH_SHORT
-                ).show()
+                    if(firstTime) {
+                        mProgressDialog!!.show()
+                        firstTime = false
+                    }
+
+                } else {
+                    Toast.makeText(
+                        baseContext,
+                        "TextToSpeech Engine is not initialized",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
             }
         }
 
@@ -124,6 +131,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         this.status = status
+        Log.e("APP", textToSpeech?.engines.toString())
         textToSpeech?.let { setUpTextToSpeech(it) }
     }
 
@@ -132,11 +140,61 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         textToSpeech = tts
 
         //Creating Text to speech engine is finished
-        textToSpeech!!.setOnUtteranceCompletedListener {
-            mProcessed = true
-            initializeMediaPlayer()
-            playMediaPlayer(0)
-        }
+//        textToSpeech!!.setOnUtteranceCompletedListener {
+//
+//        }
+
+        textToSpeech!!.setOnUtteranceProgressListener(object : UtteranceProgressListener(){
+
+            override fun onBeginSynthesis(
+                utteranceId: String?,
+                sampleRateInHz: Int,
+                audioFormat: Int,
+                channelCount: Int
+            ) {
+                super.onBeginSynthesis(utteranceId, sampleRateInHz, audioFormat, channelCount)
+                Toast.makeText(applicationContext,"Systhesis Start", Toast.LENGTH_SHORT).show()
+                Log.e("APP","Systhesis start")
+            }
+
+
+            override fun onStart(p0: String?) {
+                Log.e("APP","onStart")
+            }
+
+            override fun onDone(p0: String?) {
+                Log.e("APP", "onDone")
+                mProcessed = true
+                initializeMediaPlayer()
+                playMediaPlayer(0)
+            }
+
+            override fun onError(p0: String?) {
+                Toast.makeText(applicationContext,p0.toString(),Toast.LENGTH_SHORT).show()
+                Log.e("APP",p0.toString())
+            }
+
+            override fun onError(utteranceId: String?, errorCode: Int) {
+                super.onError(utteranceId, errorCode)
+                //Toast.makeText(applicationContext,errorCode.toString(),Toast.LENGTH_SHORT).show()
+                Log.e("APP",errorCode.toString())
+            }
+
+            override fun onAudioAvailable(utteranceId: String?, audio: ByteArray?) {
+                super.onAudioAvailable(utteranceId, audio)
+                Log.e("APP",audio.toString())
+            }
+
+            override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                super.onRangeStart(utteranceId, start, end, frame)
+                Log.e("APP","onRange start")
+            }
+
+            override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                super.onStop(utteranceId, interrupted)
+                Log.e("APP","onStop")
+            }
+        })
     }
 
     private fun initializeMediaPlayer() {
@@ -156,9 +214,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         mProgressDialog?.dismiss()
         if (status == 0) {
             mediaPlayer?.start()
+            binding.btnSpeak.text = "Pause"
         }
         if (status == 1) {
             mediaPlayer?.pause()
+            binding.btnSpeak.text = "Speak"
         }
     }
 
